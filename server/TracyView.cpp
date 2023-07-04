@@ -44,13 +44,13 @@ namespace tracy
 
 double s_time = 0;
 
-View::View( void(*cbMainThread)(std::function<void()>, bool), const char* addr, uint16_t port, ImFont* fixedWidth, ImFont* smallFont, ImFont* bigFont, SetTitleCallback stcb, SetScaleCallback sscb, AttentionCallback acb )
+View::View( void(*cbMainThread)(const std::function<void()>&, bool), const char* addr, uint16_t port, ImFont* fixedWidth, ImFont* smallFont, ImFont* bigFont, SetTitleCallback stcb, SetScaleCallback sscb, AttentionCallback acb, const Config& config )
     : m_worker( addr, port )
     , m_staticView( false )
     , m_viewMode( ViewMode::LastFrames )
     , m_viewModeHeuristicTry( true )
     , m_forceConnectionPopup( true, true )
-    , m_tc( *this, m_worker )
+    , m_tc( *this, m_worker, config.threadedRendering )
     , m_frames( nullptr )
     , m_messagesScrollBottom( true )
     , m_reactToCrash( true )
@@ -65,15 +65,17 @@ View::View( void(*cbMainThread)(std::function<void()>, bool), const char* addr, 
     , m_cbMainThread( cbMainThread )
 {
     InitMemory();
-    InitTextEditor( fixedWidth );
+    InitTextEditor();
+
+    m_vd.frameTarget = config.targetFps;
 }
 
-View::View( void(*cbMainThread)(std::function<void()>, bool), FileRead& f, ImFont* fixedWidth, ImFont* smallFont, ImFont* bigFont, SetTitleCallback stcb, SetScaleCallback sscb, AttentionCallback acb )
+View::View( void(*cbMainThread)(const std::function<void()>&, bool), FileRead& f, ImFont* fixedWidth, ImFont* smallFont, ImFont* bigFont, SetTitleCallback stcb, SetScaleCallback sscb, AttentionCallback acb, const Config& config )
     : m_worker( f )
     , m_filename( f.GetFilename() )
     , m_staticView( true )
     , m_viewMode( ViewMode::Paused )
-    , m_tc( *this, m_worker )
+    , m_tc( *this, m_worker, config.threadedRendering )
     , m_frames( m_worker.GetFramesBase() )
     , m_messagesScrollBottom( false )
     , m_smallFont( smallFont )
@@ -89,7 +91,7 @@ View::View( void(*cbMainThread)(std::function<void()>, bool), FileRead& f, ImFon
     m_notificationText = std::string( "Trace loaded in " ) + TimeToString( m_worker.GetLoadTime() );
 
     InitMemory();
-    InitTextEditor( fixedWidth );
+    InitTextEditor();
     m_vd.zvStart = m_worker.GetFirstTime();
     m_vd.zvEnd = m_worker.GetLastTime();
     m_userData.StateShouldBePreserved();
@@ -99,6 +101,8 @@ View::View( void(*cbMainThread)(std::function<void()>, bool), FileRead& f, ImFon
 
     if( m_worker.GetCallstackFrameCount() == 0 ) m_showUnknownFrames = false;
     if( m_worker.GetCallstackSampleCount() == 0 ) m_showAllSymbols = true;
+
+    m_vd.frameTarget = config.targetFps;
 }
 
 View::~View()
@@ -142,7 +146,7 @@ void View::InitMemory()
 #endif
 }
 
-void View::InitTextEditor( ImFont* font )
+void View::InitTextEditor()
 {
     m_sourceView = std::make_unique<SourceView>();
     m_sourceViewFile = nullptr;
@@ -667,7 +671,7 @@ bool View::DrawImpl()
     if( !m_titleSet && m_stcb )
     {
         m_titleSet = true;
-        m_stcb( m_worker.GetCaptureName().c_str() );
+        UpdateTitle();
     }
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();

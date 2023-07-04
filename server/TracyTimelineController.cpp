@@ -9,7 +9,7 @@
 namespace tracy
 {
 
-TimelineController::TimelineController( View& view, Worker& worker )
+TimelineController::TimelineController( View& view, Worker& worker, bool threading )
     : m_height( 0 )
     , m_scroll( 0 )
     , m_centerItemkey( nullptr )
@@ -18,9 +18,9 @@ TimelineController::TimelineController( View& view, Worker& worker )
     , m_view( view )
     , m_worker( worker )
 #ifdef __EMSCRIPTEN__
-    , m_td( 1 )
+    , m_td( 0, "Render" )
 #else
-    , m_td( std::max( 1u, std::thread::hardware_concurrency() - 2 ), "Render" )
+    , m_td( threading ? (size_t)std::max( 0, (int)std::thread::hardware_concurrency() - 2 ) : 0, "Render" )
 #endif
 {
 }
@@ -160,7 +160,7 @@ void TimelineController::End( double pxns, const ImVec2& wpos, bool hover, bool 
 
     if( const auto scrollY = CalculateScrollPosition() )
     {
-        int clampedScrollY = std::min<int>( *scrollY, yOffset );
+        int clampedScrollY = std::min<int>( *scrollY, std::max<int>( yOffset - ImGui::GetWindowHeight(), 0 ) );
         ImGui::SetScrollY( clampedScrollY );
         int minHeight = ImGui::GetWindowHeight() + clampedScrollY;
         yOffset = std::max( yOffset, minHeight );

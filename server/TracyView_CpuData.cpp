@@ -25,8 +25,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
     const auto ty = ctx.ty;
     const auto sty = ctx.sty;
     const auto pxns = ctx.pxns;
-    const auto nspxdbl = ctx.nspx;
-    const auto nspx = int64_t( nspxdbl );
+    const auto nspx = ctx.nspx;
     const auto dpos = wpos + ImVec2( 0.5f, 0.5f );
     const auto yMin = ctx.yMin;
     const auto yMax = ctx.yMax;
@@ -81,7 +80,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                     TextFocused( "Number of cores:", RealToString( cpuCnt ) );
                     if( usage.own + usage.other != 0 )
                     {
-                        const auto mt = m_vd.zvStart + ( ImGui::GetIO().MousePos.x - wpos.x ) * nspxdbl;
+                        const auto mt = m_vd.zvStart + ( ImGui::GetIO().MousePos.x - wpos.x ) * nspx;
                         ImGui::Separator();
                         for( int i=0; i<cpuCnt; i++ )
                         {
@@ -160,7 +159,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                 if( v.num > 0 )
                 {
                     const auto& eev = cs[v.idx + v.num - 1];
-                    const auto t1 = eev.IsEndValid() ? eev.End() : m_worker.GetLastTime();
+                    const auto t1 = eev.IsEndValid() ? eev.End() : eev.Start();
                     const auto px1 = ( t1 - vStart ) * pxns;
                     DrawZigZag( draw, wpos + ImVec2( 0, offset + sty/2 ), std::max( px0, -10.0 ), std::min( std::max( px1, px0+MinVisSize ), double( w + 10 ) ), sty/4, 0xFF888888 );
 
@@ -194,7 +193,7 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                 }
                 else
                 {
-                    const auto end = ev.IsEndValid() ? ev.End() : m_worker.GetLastTime();
+                    const auto end = ev.IsEndValid() ? ev.End() : ev.Start();
                     const auto px1 = ( end - vStart ) * pxns;
 
                     const auto thread = m_worker.DecompressThreadExternal( ev.Thread() );
@@ -371,6 +370,9 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
             auto end = std::lower_bound( it, v.end(), m_vd.zvEnd, [] ( const auto& l, const auto& r ) { return l.Start() < r; } );
             if( end == v.end() ) --end;
 
+            const auto bgSize = GetScale() * 4.f;
+            const auto lnSize = GetScale() * 2.f;
+
             while( it < end )
             {
                 const auto t0 = it->End();
@@ -384,14 +386,14 @@ bool View::DrawCpuData( const TimelineContext& ctx, const std::vector<CpuUsageDr
                 const auto px0 = ( t0 - m_vd.zvStart ) * pxns;
                 const auto px1 = ( t1 - m_vd.zvStart ) * pxns;
 
-                if( t1 - t0 < 2 * nspx )
+                if( px1 - px0 < 2 )
                 {
                     DrawLine( draw, dpos + ImVec2( px0, origOffset + sty * 0.5f + cpu0 * sstep ), dpos + ImVec2( px1, origOffset + sty * 0.5f + cpu1 * sstep ), color );
                 }
                 else
                 {
-                    DrawLine( draw, dpos + ImVec2( px0, origOffset + sty * 0.5f + cpu0 * sstep ), dpos + ImVec2( px1, origOffset + sty * 0.5f + cpu1 * sstep ), 0xFF000000, 4.f );
-                    DrawLine( draw, dpos + ImVec2( px0, origOffset + sty * 0.5f + cpu0 * sstep ), dpos + ImVec2( px1, origOffset + sty * 0.5f + cpu1 * sstep ), color, 2.f );
+                    DrawLine( draw, dpos + ImVec2( px0, origOffset + sty * 0.5f + cpu0 * sstep ), dpos + ImVec2( px1, origOffset + sty * 0.5f + cpu1 * sstep ), 0xFF000000, bgSize );
+                    DrawLine( draw, dpos + ImVec2( px0, origOffset + sty * 0.5f + cpu0 * sstep ), dpos + ImVec2( px1, origOffset + sty * 0.5f + cpu1 * sstep ), color, lnSize );
                 }
             }
         }

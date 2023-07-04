@@ -562,8 +562,8 @@ public:
     // GetZoneEnd() will try to infer the end time by looking at child zones (parent zone can't end
     //     before its children have ended).
     // GetZoneEndDirect() will only return zone's direct timing data, without looking at children.
-    int64_t GetZoneEnd( const ZoneEvent& ev );
-    int64_t GetZoneEnd( const GpuEvent& ev );
+    tracy_force_inline int64_t GetZoneEnd( const ZoneEvent& ev ) { return ev.IsEndValid() ? ev.End() : GetZoneEndImpl( ev ); }
+    tracy_force_inline int64_t GetZoneEnd( const GpuEvent& ev ) { return ev.GpuEnd() >= 0 ? ev.GpuEnd() : GetZoneEndImpl( ev ); }
     static tracy_force_inline int64_t GetZoneEndDirect( const ZoneEvent& ev ) { return ev.IsEndValid() ? ev.End() : ev.Start(); }
     static tracy_force_inline int64_t GetZoneEndDirect( const GpuEvent& ev ) { return ev.GpuEnd() >= 0 ? ev.GpuEnd() : ev.GpuStart(); }
 
@@ -581,7 +581,6 @@ public:
     const char* GetZoneName( const ZoneEvent& ev ) const;
     const char* GetZoneName( const ZoneEvent& ev, const SourceLocation& srcloc ) const;
     const char* GetZoneName( const GpuEvent& ev ) const;
-    const char* GetZoneName( const GpuEvent& ev, const SourceLocation& srcloc ) const;
 
     tracy_force_inline const Vector<short_ptr<ZoneEvent>>& GetZoneChildren( int32_t idx ) const { return m_data.zoneChildren[idx]; }
     tracy_force_inline const Vector<short_ptr<GpuEvent>>& GetGpuChildren( int32_t idx ) const { return m_data.gpuChildren[idx]; }
@@ -765,8 +764,8 @@ private:
     tracy_force_inline void ProcessGpuZoneBeginAllocSrcLocImpl( GpuEvent* zone, const QueueGpuZoneBeginLean& ev, bool serial );
     tracy_force_inline void ProcessGpuZoneBeginImplCommon( GpuEvent* zone, const QueueGpuZoneBeginLean& ev, bool serial );
     tracy_force_inline void ProcessPlotDataImpl( uint64_t name, int64_t evTime, double val );
-    tracy_force_inline MemEvent* ProcessMemAllocImpl( uint64_t memname, MemData& memdata, const QueueMemAlloc& ev );
-    tracy_force_inline MemEvent* ProcessMemFreeImpl( uint64_t memname, MemData& memdata, const QueueMemFree& ev );
+    tracy_force_inline MemEvent* ProcessMemAllocImpl( MemData& memdata, const QueueMemAlloc& ev );
+    tracy_force_inline MemEvent* ProcessMemFreeImpl( MemData& memdata, const QueueMemFree& ev );
     tracy_force_inline void ProcessCallstackSampleImpl( const SampleData& sd, ThreadData& td );
     tracy_force_inline void ProcessCallstackSampleInsertSample( const SampleData& sd, ThreadData& td );
 #ifndef TRACY_NO_STATISTICS
@@ -796,7 +795,7 @@ private:
     int16_t ShrinkSourceLocationReal( uint64_t srcloc );
     int16_t NewShrinkedSourceLocation( uint64_t srcloc );
 
-    tracy_force_inline void MemAllocChanged( uint64_t memname, MemData& memdata, int64_t time );
+    tracy_force_inline void MemAllocChanged( MemData& memdata, int64_t time );
     void CreateMemAllocPlot( MemData& memdata );
     void ReconstructMemAllocPlot( MemData& memdata );
 
@@ -858,7 +857,7 @@ private:
     void CheckExternalName( uint64_t id );
 
     void AddSourceLocation( const QueueSourceLocation& srcloc );
-    void AddSourceLocationPayload( uint64_t ptr, const char* data, size_t sz );
+    void AddSourceLocationPayload( const char* data, size_t sz );
 
     void AddString( uint64_t ptr, const char* str, size_t sz );
     void AddThreadString( uint64_t id, const char* str, size_t sz );
@@ -868,12 +867,12 @@ private:
     void AddSecondString( const char* str, size_t sz );
     void AddExternalName( uint64_t ptr, const char* str, size_t sz );
     void AddExternalThreadName( uint64_t ptr, const char* str, size_t sz );
-    void AddFrameImageData( uint64_t ptr, const char* data, size_t sz );
+    void AddFrameImageData( const char* data, size_t sz );
     void AddSymbolCode( uint64_t ptr, const char* data, size_t sz );
     void AddSourceCode( uint32_t id, const char* data, size_t sz );
 
-    tracy_force_inline void AddCallstackPayload( uint64_t ptr, const char* data, size_t sz );
-    tracy_force_inline void AddCallstackAllocPayload( uint64_t ptr, const char* data, size_t sz );
+    tracy_force_inline void AddCallstackPayload( const char* data, size_t sz );
+    tracy_force_inline void AddCallstackAllocPayload( const char* data );
     uint32_t MergeCallstacks( uint32_t first, uint32_t second );
 
     void InsertPlot( PlotData* plot, int64_t time, double val );
@@ -883,7 +882,7 @@ private:
     void HandlePostponedSamples();
     void HandlePostponedGhostZones();
 
-    bool IsThreadStringRetrieved( uint64_t id );
+    bool IsFailureThreadStringRetrieved();
     bool IsSourceLocationRetrieved( int16_t srcloc );
     bool IsCallstackRetrieved( uint32_t callstack );
     bool HasAllFailureData();
@@ -929,6 +928,9 @@ private:
     tracy_force_inline ZoneExtra& GetZoneExtraMutable( const ZoneEvent& ev ) { return m_data.zoneExtra[ev.extra]; }
     tracy_force_inline ZoneExtra& AllocZoneExtra( ZoneEvent& ev );
     tracy_force_inline ZoneExtra& RequestZoneExtra( ZoneEvent& ev );
+
+    int64_t GetZoneEndImpl( const ZoneEvent& ev );
+    int64_t GetZoneEndImpl( const GpuEvent& ev );
 
     void UpdateMbps( int64_t td );
 

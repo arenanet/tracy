@@ -779,17 +779,13 @@ const char* View::GetFrameText( const FrameData& fd, int i, uint64_t ftime ) con
         {
             sprintf( buf, "Tracy init (%s)", TimeToString( ftime ) );
         }
-        else if( !m_worker.IsOnDemand() )
+        else if( i != 1 || !m_worker.IsOnDemand() )
         {
             sprintf( buf, "Frame %s (%s)", RealToString( fnum ), TimeToString( ftime ) );
-        }
-        else if( i == 1 )
-        {
-            sprintf( buf, "Missed frames (%s)", TimeToString( ftime ) );
         }
         else
         {
-            sprintf( buf, "Frame %s (%s)", RealToString( fnum ), TimeToString( ftime ) );
+            sprintf( buf, "Missed frames (%s)", TimeToString( ftime ) );
         }
     }
     else
@@ -871,6 +867,32 @@ void View::Attention( bool& alreadyDone )
     {
         alreadyDone = true;
         m_acb();
+    }
+}
+
+void View::UpdateTitle()
+{
+    auto captureName = m_worker.GetCaptureName().c_str();
+    const auto& desc = m_userData.GetDescription();
+    if( !desc.empty() )
+    {
+        char buf[1024];
+        snprintf( buf, 1024, "%s (%s)", captureName, desc.c_str() );
+        m_stcb( buf );
+    }
+    else if( !m_filename.empty() )
+    {
+        auto fptr = m_filename.c_str() + m_filename.size() - 1;
+        while( fptr > m_filename.c_str() && *fptr != '/' && *fptr != '\\' ) fptr--;
+        if( *fptr == '/' || *fptr == '\\' ) fptr++;
+
+        char buf[1024];
+        snprintf( buf, 1024, "%s (%s)", captureName, fptr );
+        m_stcb( buf );
+    }
+    else
+    {
+        m_stcb( captureName );
     }
 }
 

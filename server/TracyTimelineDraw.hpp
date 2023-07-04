@@ -71,6 +71,34 @@ struct CpuCtxDraw
 };
 
 
+
+struct LockState
+{
+    enum Type : uint8_t
+    {
+        Nothing         = 1 << 0,
+        HasLock         = 1 << 1,   // green
+        HasBlockingLock = 1 << 2,   // yellow
+        WaitLock        = 1 << 3    // red
+    };
+};
+
+struct LockDrawItem
+{
+    Int48 t1;
+    LockState::Type state;
+    uint32_t condensed;
+    short_ptr<LockEventPtr> ptr, next;
+};
+
+struct LockDraw
+{
+    uint32_t id;
+    bool forceDraw;
+    uint8_t thread;
+    std::vector<LockDrawItem> data;
+};
+
 }
 
 #endif

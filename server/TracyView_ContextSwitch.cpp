@@ -143,7 +143,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
     const auto pxns = ctx.pxns;
     const auto hover = ctx.hover;
     const auto w = ctx.w;
-    const auto ty = ctx.ty;
+    const auto ty = round( ctx.ty * 0.75f );
 
     const auto lineSize = 2 * GetScale();
     auto draw = ImGui::GetWindowDrawList();
@@ -260,7 +260,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
             const auto num = v.data;
             const auto px0 = std::max( ( ev.Start() - vStart ) * pxns, -10.0 );
             const auto eit = it + num - 1;
-            const auto end = eit->IsEndValid() ? eit->End() : m_worker.GetLastTime();
+            const auto end = eit->IsEndValid() ? eit->End() : eit->Start();
             const auto px1ns = end - vStart;
             minpx = std::min( std::max( px1ns * pxns, px0+MinCtxSize ), double( w + 10 ) );
             if( num == 1 )
@@ -294,7 +294,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
             }
             else
             {
-                DrawZigZag( draw, wpos + ImVec2( 0, offset + ty05 ), px0, minpx, ty/4, 0xFF888888, 1.5 );
+                DrawZigZag( draw, wpos + ImVec2( 0, offset + ty05 ), px0, minpx, ty/4, 0xFF888888 );
                 if( hover && ImGui::IsMouseHoveringRect( wpos + ImVec2( px0, offset ), wpos + ImVec2( minpx, offset + ty + 1 ) ) )
                 {
                     ImGui::BeginTooltip();
@@ -313,7 +313,7 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
         }
         case ContextSwitchDrawType::Running:
         {
-            const auto end = ev.IsEndValid() ? ev.End() : m_worker.GetLastTime();
+            const auto end = ev.IsEndValid() ? ev.End() : ev.Start();
             const auto px0 = std::max( { ( ev.Start() - vStart ) * pxns, -10.0, double( minpx ) } );
             const auto px1 = std::min( ( end - vStart ) * pxns, w + 10.0 );
             DrawLine( draw, dpos + ImVec2( px0, offset + ty05 - 0.5f ), dpos + ImVec2( px1, offset + ty05 - 0.5f ), 0xFF22DD22, lineSize );

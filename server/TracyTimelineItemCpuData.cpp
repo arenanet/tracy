@@ -41,8 +41,7 @@ int64_t TimelineItemCpuData::RangeEnd() const
 
 bool TimelineItemCpuData::DrawContents( const TimelineContext& ctx, int& offset )
 {
-    const bool hasCpuData = m_worker.IsCpuUsageReady() && !m_worker.GetCpuUsage().empty();
-    m_view.DrawCpuData( ctx, m_cpuDraw, m_ctxDraw, offset, hasCpuData );
+    m_view.DrawCpuData( ctx, m_cpuDraw, m_ctxDraw, offset, m_hasCpuData );
     return true;
 }
 
@@ -66,6 +65,7 @@ void TimelineItemCpuData::Preprocess( const TimelineContext& ctx, TaskDispatch& 
     const auto ostep = ty + 1;
     const auto sstep = sty + 1;
 
+    bool hasCpuData = false;
     auto pos = yPos + ostep;
 
 #ifdef TRACY_NO_STATISTICS
@@ -74,15 +74,39 @@ void TimelineItemCpuData::Preprocess( const TimelineContext& ctx, TaskDispatch& 
     if( m_view.GetViewData().drawCpuUsageGraph && m_worker.IsCpuUsageReady() )
 #endif
     {
-        const auto cpuUsageHeight = floor( 30.f * GetScale() );
-        if( pos <= yMax && pos + cpuUsageHeight + 3 >= yMin )
+#ifndef TRACY_NO_STATISTICS
+        auto& ctxUsage = m_worker.GetCpuUsage();
+        if( !ctxUsage.empty() )
         {
-            td.Queue( [this, &ctx] {
-                PreprocessCpuUsage( ctx );
-            } );
+            hasCpuData = true;
         }
-        pos += cpuUsageHeight + 3;
+        else
+#endif
+        {
+            const auto cpuDataCount = m_worker.GetCpuDataCpuCount();
+            const auto cpuData = m_worker.GetCpuData();
+            for( int i=0; i<cpuDataCount; i++ )
+            {
+                if( !cpuData[i].cs.empty() )
+                {
+                    hasCpuData = true;
+                    break;
+                }
+            }
+        }
+        if( hasCpuData )
+        {
+            const auto cpuUsageHeight = floor( 30.f * GetScale() );
+            if( pos <= yMax && pos + cpuUsageHeight + 3 >= yMin )
+            {
+                td.Queue( [this, &ctx] {
+                    PreprocessCpuUsage( ctx );
+                } );
+            }
+            pos += cpuUsageHeight + 3;
+        }
     }
+    m_hasCpuData = hasCpuData;
 
     auto cpuData = m_worker.GetCpuData();
     const auto cpuCnt = m_worker.GetCpuDataCpuCount();
@@ -109,7 +133,7 @@ void TimelineItemCpuData::PreprocessCpuCtxSwitches( const TimelineContext& ctx, 
     const auto vEnd = ctx.vEnd;
     const auto nspx = ctx.nspx;
 
-    auto it = std::lower_bound( cs.begin(), cs.end(), std::max<int64_t>( 0, vStart ), [this] ( const auto& l, const auto& r ) { return ( l.IsEndValid() ? l.End() : m_worker.GetLastTime() ) < r; } );
+    auto it = std::lower_bound( cs.begin(), cs.end(), std::max<int64_t>( 0, vStart ), [] ( const auto& l, const auto& r ) { return ( l.IsEndValid() ? l.End() : l.Start() ) < r; } );
     if( it == cs.end() ) return;
     auto eit = std::lower_bound( it, cs.end(), vEnd, [] ( const auto& l, const auto& r ) { return l.Start() < r; } );
     if( it == eit ) return;
@@ -118,7 +142,7 @@ void TimelineItemCpuData::PreprocessCpuCtxSwitches( const TimelineContext& ctx, 
 
     while( it < eit )
     {
-        const auto end = it->IsEndValid() ? it->End() : m_worker.GetLastTime();
+        const auto end = it->IsEndValid() ? it->End() : it->Start();
         const auto zsz = end - it->Start();
         if( zsz < MinVisNs )
         {
@@ -126,11 +150,11 @@ void TimelineItemCpuData::PreprocessCpuCtxSwitches( const TimelineContext& ctx, 
             auto next = it + 1;
             for(;;)
             {
-                next = std::lower_bound( next, eit, nextTime, [this] ( const auto& l, const auto& r ) { return ( l.IsEndValid() ? l.End() : m_worker.GetLastTime() ) < r; } );
+                next = std::lower_bound( next, eit, nextTime, [] ( const auto& l, const auto& r ) { return ( l.IsEndValid() ? l.End() : l.Start() ) < r; } );
                 if( next == eit ) break;
                 auto prev = next - 1;
-                const auto pt = prev->IsEndValid() ? prev->End() : m_worker.GetLastTime();
-                const auto nt = next->IsEndValid() ? next->End() : m_worker.GetLastTime();
+                const auto pt = prev->IsEndValid() ? prev->End() : prev->Start();
+                const auto nt = next->IsEndValid() ? next->End() : next->Start();
                 if( nt - pt >= MinVisNs ) break;
                 nextTime = nt + MinVisNs;
             }
