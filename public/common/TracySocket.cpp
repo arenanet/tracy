@@ -603,13 +603,15 @@ bool UdpBroadcast::Open( const char* addr, uint16_t port )
     freeaddrinfo( res );
     if( !ptr ) return false;
 
-	// @@ANET -- There is a symbol conflict between ws2_32.lib inet_pton and our internal, custom-built pythoncore.lib.
-	// which also defines inet_pton. This resulted in a linker error.
-	// Fixing the python source then recompiling that lib would be a big project. Quick fix, use wchar version of inet_pton 
-	// so there is no symbol confusion. Gross but effective.
+    m_sock = sock;
 
-	// Original code
-	// inet_pton(AF_INET, addr, &m_addr);
+    // @@ANET -- There is a symbol conflict between ws2_32.lib inet_pton and our internal, custom-built pythoncore.lib.
+    // which also defines inet_pton. This resulted in a linker error.
+    // Fixing the python source then recompiling that lib would be a big project. Quick fix, use wchar version of inet_pton 
+    // so there is no symbol confusion. Gross but effective.
+    
+    // Original code
+    // inet_pton(AF_INET, addr, &m_addr);
 
 	wchar_t addrW[255] = { 0 };
 	mbstowcs(addrW, addr, 255);
