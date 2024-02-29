@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(Tracy LANGUAGES CXX)
+# Run version helper script
+include(version.cmake)
+
+set(TRACY_VERSION_MAJOR ${major})
+set(TRACY_VERSION_MINOR ${minor})
+set(TRACY_VERSION_PATCH ${patch})
+set(TRACY_VERSION_STRING "${TRACY_VERSION_MAJOR}.${TRACY_VERSION_MINOR}.${TRACY_VERSION_PATCH}")
+
+project(Tracy LANGUAGES CXX VERSION ${TRACY_VERSION_STRING})
 
 if(${BUILD_SHARED_LIBS})
 	set(DEFAULT_STATIC OFF)
@@ -56,7 +64,7 @@ endmacro()
 
 set_option(TRACY_ENABLE "Enable profiling" ON)
 set_option(TRACY_ON_DEMAND "On-demand profiling" OFF)
-set_option(TRACY_CALLSTACK "Enfore callstack collection for tracy regions" OFF)
+set_option(TRACY_CALLSTACK "Enforce callstack collection for tracy regions" OFF)
 set_option(TRACY_NO_CALLSTACK "Disable all callstack related functionality" OFF)
 set_option(TRACY_NO_CALLSTACK_INLINES "Disables the inline functions in callstacks" OFF)
 set_option(TRACY_ONLY_LOCALHOST "Only listen on the localhost interface" OFF)
@@ -70,11 +78,15 @@ set_option(TRACY_NO_VERIFY "Disable zone validation for C API" OFF)
 set_option(TRACY_NO_VSYNC_CAPTURE "Disable capture of hardware Vsync events" OFF)
 set_option(TRACY_NO_FRAME_IMAGE  "Disable the frame image support and its thread" OFF)
 set_option(TRACY_NO_SYSTEM_TRACING  "Disable systrace sampling" OFF)
+set_option(TRACY_PATCHABLE_NOPSLEDS  "Enable nopsleds for efficient patching by system-level tools (e.g. rr)" OFF)
 set_option(TRACY_DELAYED_INIT "Enable delayed initialization of the library (init on first call)" OFF)
 set_option(TRACY_MANUAL_LIFETIME "Enable the manual lifetime management of the profile" OFF)
 set_option(TRACY_FIBERS "Enable fibers support" OFF)
 set_option(TRACY_NO_CRASH_HANDLER "Disable crash handling" OFF)
 set_option(TRACY_TIMER_FALLBACK "Use lower resolution timers" OFF)
+set_option(TRACY_LIBUNWIND_BACKTRACE "Use libunwind backtracing where supported" OFF)
+set_option(TRACY_SYMBOL_OFFLINE_RESOLVE "Instead of full runtime symbol resolution, only resolve the image path and offset to enable offline symbol resolution" OFF)
+set_option(TRACY_LIBBACKTRACE_ELF_DYNLOAD_SUPPORT "Enable libbacktrace to support dynamically loaded elfs in symbol resolution resolution after the first symbol resolve operation" OFF)
 
 if(NOT TRACY_STATIC)
     target_compile_definitions(TracyClient PRIVATE TRACY_EXPORTS)
@@ -83,6 +95,8 @@ endif()
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
+
+set_target_properties(TracyClient PROPERTIES VERSION ${PROJECT_VERSION})
 
 set(tracy_includes
     ${TRACY_PUBLIC_DIR}/tracy/TracyC.h
@@ -146,10 +160,10 @@ install(FILES ${common_includes}
 install(EXPORT TracyConfig
         NAMESPACE Tracy::
         FILE TracyTargets.cmake
-        DESTINATION share/Tracy)
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/Tracy)
 include(CMakePackageConfigHelpers)
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
         "${CMAKE_CURRENT_BINARY_DIR}/TracyConfig.cmake"
-        INSTALL_DESTINATION share/Tracy)
+        INSTALL_DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/Tracy)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/TracyConfig.cmake
-        DESTINATION share/Tracy)
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/Tracy)

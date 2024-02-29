@@ -95,6 +95,7 @@ static ConnectionHistory* connHist;
 static std::atomic<ViewShutdown> viewShutdown { ViewShutdown::False };
 static double animTime = 0;
 static float dpiScale = 1.f;
+static bool dpiScaleOverriddenFromEnv = false;
 static Filters* filt;
 static RunQueue mainThreadTasks;
 static uint32_t updateVersion = 0;
@@ -135,6 +136,13 @@ static void RunOnMainThread( const std::function<void()>& cb, bool forceDelay = 
 static void SetupDPIScale( float scale, ImFont*& cb_fixedWidth, ImFont*& cb_bigFont, ImFont*& cb_smallFont )
 {
     LoadFonts( scale, cb_fixedWidth, cb_bigFont, cb_smallFont );
+
+#ifdef __APPLE__
+    // No need to upscale the style on macOS, but we need to downscale the fonts.
+    ImGuiIO& io = ImGui::GetIO();
+    io.FontGlobalScale = 1.0f / dpiScale;
+    scale = 1.0f;
+#endif
 
     auto& style = ImGui::GetStyle();
     style = ImGuiStyle();
@@ -190,6 +198,15 @@ static bool SaveConfig()
     return true;
 }
 
+static void ScaleChanged( float scale )
+{
+    if ( dpiScaleOverriddenFromEnv ) return;
+    if ( dpiScale == scale ) return;
+
+    dpiScale = scale;
+    SetupDPIScale( dpiScale, s_fixedWidth, s_bigFont, s_smallFont );
+}
+
 int main( int argc, char** argv )
 {
     sprintf( title, "Tracy Profiler %i.%i.%i", tracy::Version::Major, tracy::Version::Minor, tracy::Version::Patch );
@@ -210,7 +227,25 @@ int main( int argc, char** argv )
             printf( "      %s -a address [-p port]\n", argv[0] );
             exit( 0 );
         }
-        initFileOpen = std::unique_ptr<tracy::FileRead>( tracy::FileRead::Open( argv[1] ) );
+        try
+        {
+            initFileOpen = std::unique_ptr<tracy::FileRead>( tracy::FileRead::Open( argv[1] ) );
+        }
+        catch( const tracy::UnsupportedVersion& e )
+        {
+            fprintf( stderr, "The file you are trying to open is from the future version.\n" );
+            exit( 1 );
+        }
+        catch( const tracy::NotTracyDump& e )
+        {
+            fprintf( stderr, "The file you are trying to open is not a tracy dump.\n" );
+            exit( 1 );
+        }
+        catch( const tracy::LegacyVersion& e )
+        {
+            fprintf( stderr, "The file you are trying to open is from a legacy version.\n" );
+            exit( 1 );
+        }
         if( !initFileOpen )
         {
             fprintf( stderr, "Cannot open trace file: %s\n", argv[1] );
@@ -272,7 +307,7 @@ int main( int argc, char** argv )
     LoadConfig();
 
     ImGuiTracyContext imguiContext;
-    Backend backend( title, DrawContents, &mainThreadTasks );
+    Backend backend( title, DrawContents, ScaleChanged, &mainThreadTasks );
     tracy::InitTexture();
     iconTex = tracy::MakeTexture();
     zigzagTex = tracy::MakeTexture( true );
@@ -285,7 +320,11 @@ int main( int argc, char** argv )
     if( envDpiScale )
     {
         const auto cnv = atof( envDpiScale );
-        if( cnv != 0 ) dpiScale = cnv;
+        if( cnv != 0 )
+        {
+            dpiScale = cnv;
+            dpiScaleOverriddenFromEnv = true;
+        }
     }
 
     SetupDPIScale( dpiScale, s_fixedWidth, s_bigFont, s_smallFont );
@@ -567,7 +606,7 @@ static void DrawContents()
                 ImGui::Indent();
                 if( ImGui::RadioButton( "Enabled", s_config.threadedRendering ) ) { s_config.threadedRendering = true; SaveConfig(); }
                 ImGui::SameLine();
-                tracy::DrawHelpMarker( "Uses all available CPU cores for rendering. May affect performance of the profiled application when running on the same machine." );
+                tracy::DrawHelpMarker( "Uses multiple CPU cores for rendering. May affect performance of the profiled application when running on the same machine." );
                 if( ImGui::RadioButton( "Disabled", !s_config.threadedRendering ) ) { s_config.threadedRendering = false; SaveConfig(); }
                 ImGui::SameLine();
                 tracy::DrawHelpMarker( "Restricts rendering to a single CPU core. Can reduce profiler frame rate." );
@@ -759,6 +798,11 @@ static void DrawContents()
                                 badVer.state = tracy::BadVersionState::LegacyVersion;
                                 badVer.version = e.version;
                             }
+                            catch( const tracy::LoadFailure& e )
+                            {
+                                badVer.state = tracy::BadVersionState::LoadFailure;
+                                badVer.msg = e.msg;
+                            }
                         } );
                     }
                 }
@@ -772,13 +816,13 @@ static void DrawContents()
                 }
             } );
         }
+#endif
 
         if( badVer.state != tracy::BadVersionState::Ok )
         {
             if( loadThread.joinable() ) { loadThread.join(); }
             tracy::BadVersion( badVer, s_bigFont );
         }
-#endif
 
         if( !clients.empty() )
         {
