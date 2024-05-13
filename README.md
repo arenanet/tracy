@@ -1,5 +1,7 @@
 # Tracy Profiler
 
+# ⚠️ This now lives in [GitLab](https://gitlab.corp.arena.net/gw2/engine-team) ⚠️
+
 [![Sponsor](.github/sponsor.png)](https://github.com/sponsors/wolfpld/)
 
 ### A real time, nanosecond resolution, remote telemetry, hybrid frame and sampling profiler for games and other applications.
